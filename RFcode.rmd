@@ -1,0 +1,89 @@
+Random Forest Model for Weight Lifting Exercise Dataset
+========================================================
+
+The data for this project came from this source: http://groupware.les.inf.puc-rio.br/har.
+My choice of random forest algorithm is dictated by the fact that it is perfectly suited for the prediction of a factor variable (classe) and thus provides outstanding accuracy. It is quite simple and fast and doesn't require much tuning. Moreover this algorithm as a member of ensemble methods class aggregates a bunch of random clasification/regression trees models and chooses good prediction from the minority of relevant trees. 
+
+```{r RFmodelCode}
+# reading traning dataset
+setwd("D:/Learning/Practical Machine Learning")
+trainData <- read.csv("pml-training.csv",na.strings=c("NA",""))
+# removing from dataset not available values
+trainNAdata <- apply(trainData,2,function(x) {sum(is.na(x))})
+cleanedData <- trainData[,which(trainNAdata == 0)]
+library(caret)
+# balanced splitting of the training dataset
+# tried several options of p and used p=30% of the training dataset to achieve higher accuracy, while minimizing processing 
+inTrain <- createDataPartition(y = cleanedData$classe, p=0.3,list=FALSE)
+training <- cleanedData[inTrain,]
+testTrain <- cleanedData[-inTrain,]
+# filtering out meaningless variables for classification
+useless <- grep("user_name|timestamp|X|new_window",names(training))
+training <- training[,-useless]
+# creating a random forest model
+library(randomForest)
+fit <- randomForest(classe ~ .,   data = training, importance = TRUE, proximity = TRUE)
+fit
+summary(fit)
+# getting an overview of the classifier's performance
+confusion=fit$confusion
+sensitivity=(confusion[2,2]/(confusion[2,2]+confusion[2,1]))*100
+sensitivity
+specificity=(confusion[1,1]/(confusion[1,1]+confusion[1,2]))*100
+specificity
+# calculating an importance measures for each predictor
+imp <- importance(fit)
+imp
+# checking model on remaining 70% of training dataset
+predTrain <- predict(fit,testTrain); testTrain$predRight <- predTrain == testTrain$classe
+table(predTrain, testTrain$classe)
+# getting overall accuracy of the model
+overallError=fit$err.rate[length(fit$err.rate[,1]),1]*100
+overallAccuracy=100-overallError
+overallAccuracy
+# very high classifier's performance and accuracy of the model indicates the correct choice
+# of the random forest algorithm.
+
+# reading test dataset
+testData <- read.csv("pml-testing.csv",na.strings=c("NA",""))
+# adjusting test dataset to training dataset analog
+testNAdata <- apply(testData,2,function(x) {sum(is.na(x))})
+cleanedDataT <- testData[,which(testNAdata == 0)]
+cleanedDataT["classe"] <- NA
+testing <- cleanedDataT
+uselessT <- grep("user_name|timestamp|X|new_window",names(testing))
+testing <- testing[,-uselessT]
+# predicting new values of classe variable in test dataset
+pred <- predict(fit, testing)
+pred
+# checking class of pred to avoid the strange results producing by pml_write_files function
+class(pred)
+predAnswer <- as.character(pred)
+# getting character class of pred
+class(predAnswer)
+# writing files with answers for Prediction Assignment Submission
+# pml_write_files = function(x){
+#         +   n = length(x)
+#         +   for(i in 1:n){
+#                 +     filename = paste0("problem_id_",i,".txt")
+#                 +     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+#                 +   }
+#         + }
+# setwd("D:/Learning/Practical Machine Learning/Answers")
+# pml_write_files(predAnswer)
+```
+
+Models results visualization:
+
+```{r RFmodel plots}
+# plotting of an  error rate of the model
+plot(fit, log="y")
+# plotting of the variable importance
+varImpPlot(fit)
+# the plot shows each variable on the y-axis, and their importance on the x-axis in order
+library(RColorBrewer)
+# Multidimensional scaling plot shows how far apart (relatively) model's clusters are from each othe
+MDSplot(fit, training$classe)
+```
+
+
